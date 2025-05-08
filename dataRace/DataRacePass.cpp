@@ -4,20 +4,19 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/InstIterator.h"     // For instructions()
-#include "llvm/Support/raw_ostream.h" // For outs()
+#include "llvm/IR/InstIterator.h"    
+#include "llvm/Support/raw_ostream.h"
 #include "llvm/ADT/SmallSet.h"
-#include "llvm/Analysis/ValueTracking.h" // For getUnderlyingObject
-#include "llvm/IR/DebugInfoMetadata.h"   // For DebugLoc
-#include "llvm/IR/Metadata.h"          // For MDNode, MDString, ValueAsMetadata, NamedMDNode
-#include "llvm/IR/DataLayout.h"        // For DataLayout
+#include "llvm/Analysis/ValueTracking.h" 
+#include "llvm/IR/DebugInfoMetadata.h"  
+#include "llvm/IR/Metadata.h"          
+#include "llvm/IR/DataLayout.h"        
 #include <vector>
 #include <string>
 #include <optional>
 
 using namespace llvm;
 
-// --- Helper Structures (Simplified for Demo) ---
 enum class SymbolicLocationType {
     CONSTANT_INDEXED_ARRAY0, // 0
     TID_X_INDEXED_ARRAY,     // 1
@@ -66,19 +65,12 @@ struct AbstractAddressFunc {
         SymbolicLocation symLoc;
         symLoc.type = SymbolicLocationType::OTHER_COMPLEX; // Default
 
-        // outs() << "[DEBUG][characterize] Start characterization for pointer: ";
-        // if(pointerOperandIR) pointerOperandIR->printAsOperand(outs(), false); else outs() << "null";
-        // outs() << "\n";
 
         if (!pointerOperandIR || !currentFunction || currentFunction->arg_empty()) {
-            // outs() << "[DEBUG][characterize]  -> Exiting early (null pointer/func/no args).\n";
             return symLoc;
         }
 
         symLoc.baseKernelArg = currentFunction->arg_begin();
-        // outs() << "[DEBUG][characterize]  -> BaseKernelArg (%0): ";
-        // if(symLoc.baseKernelArg) symLoc.baseKernelArg->printAsOperand(outs(), false); else outs() << "null";
-        // outs() << "\n";
 
         GetElementPtrInst* GEP = dyn_cast<GetElementPtrInst>(pointerOperandIR);
         if (!GEP) {
@@ -87,9 +79,7 @@ struct AbstractAddressFunc {
         }
 
         Value* gepBasePointerValue = GEP->getPointerOperand();
-        // outs() << "[DEBUG][characterize]  -> GEP Base Operand: ";
-        // if(gepBasePointerValue) gepBasePointerValue->printAsOperand(outs(), false); else outs() << "null";
-        // outs() << "\n";
+
 
         // --- Revised Check for Base Pointer Origin ---
         bool baseIsFromKernelArg0 = false;
@@ -204,22 +194,22 @@ struct CUDARaceDetectorPass : public FunctionPass {
     const int N_THREADS = 2;
 
     bool runOnFunction(Function &F) override {
-        outs() << "[PASS] Processing Function: " << F.getName() << "\n";
+        outs() << "[ Algorithm ] Processing Function: " << F.getName() << "\n";
         bool isKernel = false;
 
         CallingConv::ID cc = F.getCallingConv();
-        // outs() << "[PASS]   Function CC ID: " << cc << " (PTX_Kernel is " << CallingConv::PTX_Kernel << ")\n";
+        // outs() << "[ Algorithm ]   Function CC ID: " << cc << " (PTX_Kernel is " << CallingConv::PTX_Kernel << ")\n";
         if (cc == CallingConv::PTX_Kernel) {
             isKernel = true;
         }
 
         if (!isKernel) {
-            // outs() << "[PASS]   Not PTX_Kernel by CC, checking module-level metadata 'nvvm.annotations'...\n";
+            // outs() << "[ Algorithm ]   Not PTX_Kernel by CC, checking module-level metadata 'nvvm.annotations'...\n";
             Module *M = F.getParent();
             if (M) {
                 NamedMDNode *NMD = M->getNamedMetadata("nvvm.annotations");
                 if (NMD) {
-                    // outs() << "[PASS]   Found module-level 'nvvm.annotations' NamedMDNode with " << NMD->getNumOperands() << " entries.\n";
+                    // outs() << "[ Algorithm ]   Found module-level 'nvvm.annotations' NamedMDNode with " << NMD->getNumOperands() << " entries.\n";
                     for (unsigned i = 0, e = NMD->getNumOperands(); i < e; ++i) {
                         MDNode *Annotation = NMD->getOperand(i);
                         if (Annotation && Annotation->getNumOperands() >= 3) {
@@ -227,12 +217,12 @@ struct CUDARaceDetectorPass : public FunctionPass {
                              if (ValueAsMetadata *VMD = dyn_cast<ValueAsMetadata>(funcMd)) {
                                  if (Function* AnnFunc = dyn_cast<Function>(VMD->getValue())) {
                                      if (AnnFunc == &F) {
-                                         // outs() << "[PASS]     Annotation Entry #" << i << " is for current function: " << F.getName() << ".\n";
+                                         // outs() << "[ Algorithm ]     Annotation Entry #" << i << " is for current function: " << F.getName() << ".\n";
                                          Metadata* typeMd = Annotation->getOperand(1).get();
                                          if (MDString *TypeStr = dyn_cast<MDString>(typeMd)) {
-                                             // outs() << "[PASS]       MDString value: \"" << TypeStr->getString() << "\"\n";
+                                             // outs() << "[ Algorithm ]       MDString value: \"" << TypeStr->getString() << "\"\n";
                                              if (TypeStr->getString() == "kernel") {
-                                                //  outs() << "[PASS]     Identified as kernel via metadata.\n";
+                                                //  outs() << "[ Algorithm ]     Identified as kernel via metadata.\n";
                                                  isKernel = true;
                                                  break;
                                              }
@@ -242,16 +232,16 @@ struct CUDARaceDetectorPass : public FunctionPass {
                              }
                         }
                     }
-                } // else { /* outs() << "[PASS]   No module-level 'nvvm.annotations' NamedMDNode found.\n"; */ }
-            } // else { /* outs() << "[PASS]   Could not get parent Module.\n"; */ }
+                } // else { /* outs() << "[ Algorithm ]   No module-level 'nvvm.annotations' NamedMDNode found.\n"; */ }
+            } // else { /* outs() << "[ Algorithm ]   Could not get parent Module.\n"; */ }
         }
 
         if (!isKernel) {
-            // outs() << "[PASS] Function " << F.getName() << " is NOT identified as a kernel. Skipping analysis.\n";
+            // outs() << "[ Algorithm ] Function " << F.getName() << " is NOT identified as a kernel. Skipping analysis.\n";
             return false;
         }
 
-        // outs() << "[PASS] Analyzing CUDA Kernel (Confirmed): " << F.getName() << "\n";
+        // outs() << "[ Algorithm ] Analyzing CUDA Kernel (Confirmed): " << F.getName() << "\n";
 
         std::vector<MemoryAccessEvent> memoryModel;
         int currentBarrierOrder = 0;
@@ -280,10 +270,10 @@ struct CUDARaceDetectorPass : public FunctionPass {
             }
         }
 
-        outs() << "[PASS]   Memory model size: " << memoryModel.size() << "\n";
+        outs() << "[ Algorithm ]   Memory model size: " << memoryModel.size() << "\n";
 
         // ---- Apply Refined Intra-Event Race Rule ----
-        outs() << "[PASS]   Starting Intra-Event Race Checks (Refined)...\n"; // DEBUG
+        outs() << "[ Algorithm ]   Starting Intra-Event Race Checks (Refined)...\n"; // DEBUG
         for (size_t i = 0; i < memoryModel.size(); ++i) {
             const auto& event = memoryModel[i];
             // outs() << "[DEBUG][Intra] Checking event #" << i << " (line " << event.DbgLine << ")\n";
@@ -330,7 +320,7 @@ struct CUDARaceDetectorPass : public FunctionPass {
 
 
         // ---- Apply Inter-Event Race Rule ----
-        outs() << "[PASS]   Starting Inter-Event Race Checks...\n";
+        outs() << "[ Algorithm ]   Starting Inter-Event Race Checks...\n";
         for (size_t i = 0; i < memoryModel.size(); ++i) {
             for (size_t j = i + 1; j < memoryModel.size(); ++j) {
                 const auto& e_i = memoryModel[i];
@@ -391,7 +381,7 @@ struct CUDARaceDetectorPass : public FunctionPass {
                 } // else { /* outs() << "[DEBUG][Inter]   No inter-clash found for pair (" << i << "," << j << ").\n"; */ }
             }
         }
-        outs() << "[PASS] Finished analysis for: " << F.getName() << "\n";
+        outs() << "[ Algorithm ] Finished analysis for: " << F.getName() << "\n";
         return false;
     }
 
@@ -402,7 +392,7 @@ struct CUDARaceDetectorPass : public FunctionPass {
 
 char CUDARaceDetectorPass::ID = 0;
 static RegisterPass<CUDARaceDetectorPass> X(
-    "datarace", // Your chosen name
+    "redu_barr", // Your chosen name
     "CUDA Data Race Detector Pass (Tailored with Full Debugging)",
     false,
     false);
