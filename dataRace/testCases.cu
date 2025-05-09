@@ -1,4 +1,3 @@
-%%writefile datarace.cu
 #include <stdio.h>
 
 #define N 2 // For simplicity, just two threads in the block
