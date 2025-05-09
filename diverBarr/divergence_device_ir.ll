@@ -122,6 +122,48 @@ define dso_local void @_Z28barrier_NotDivergent_allThdsPi(i32* noundef %0) #0 {
   ret void
 }
 
+; Function Attrs: convergent mustprogress noinline norecurse nounwind optnone
+define dso_local void @_Z25barrier_Divergent_ComplexPi(i32* noundef %0) #0 {
+  %2 = alloca i32*, align 8
+  %3 = alloca i32, align 4
+  store i32* %0, i32** %2, align 8
+  %4 = call i32 @llvm.nvvm.read.ptx.sreg.tid.x() #3
+  store i32 %4, i32* %3, align 4
+  %5 = load i32, i32* %3, align 4
+  %6 = icmp slt i32 %5, 16
+  br i1 %6, label %7, label %19
+
+7:                                                ; preds = %1
+  %8 = load i32, i32* %3, align 4
+  %9 = load i32*, i32** %2, align 8
+  %10 = load i32, i32* %3, align 4
+  %11 = sext i32 %10 to i64
+  %12 = getelementptr inbounds i32, i32* %9, i64 %11
+  store i32 %8, i32* %12, align 4
+  call void @llvm.nvvm.barrier0()
+  %13 = load i32, i32* %3, align 4
+  %14 = mul nsw i32 %13, 10
+  %15 = load i32*, i32** %2, align 8
+  %16 = load i32, i32* %3, align 4
+  %17 = sext i32 %16 to i64
+  %18 = getelementptr inbounds i32, i32* %15, i64 %17
+  store i32 %14, i32* %18, align 4
+  br label %26
+
+19:                                               ; preds = %1
+  %20 = load i32, i32* %3, align 4
+  %21 = mul nsw i32 %20, -1
+  %22 = load i32*, i32** %2, align 8
+  %23 = load i32, i32* %3, align 4
+  %24 = sext i32 %23 to i64
+  %25 = getelementptr inbounds i32, i32* %22, i64 %24
+  store i32 %21, i32* %25, align 4
+  br label %26
+
+26:                                               ; preds = %19, %7
+  ret void
+}
+
 ; Function Attrs: nounwind readnone speculatable
 declare i32 @llvm.nvvm.read.ptx.sreg.tid.x() #2
 
@@ -131,9 +173,9 @@ attributes #2 = { nounwind readnone speculatable }
 attributes #3 = { nounwind }
 
 !llvm.module.flags = !{!0, !1, !2, !3}
-!nvvm.annotations = !{!4, !5, !6}
-!llvm.ident = !{!7, !8}
-!nvvmir.version = !{!9}
+!nvvm.annotations = !{!4, !5, !6, !7}
+!llvm.ident = !{!8, !9}
+!nvvmir.version = !{!10}
 
 !0 = !{i32 2, !"SDK Version", [2 x i32] [i32 11, i32 5]}
 !1 = !{i32 1, !"wchar_size", i32 4}
@@ -142,6 +184,7 @@ attributes #3 = { nounwind }
 !4 = !{void (i32*)* @_Z21barrier_divergent_tidPi, !"kernel", i32 1}
 !5 = !{void (i32*)* @_Z26barrier_outside_divergencePi, !"kernel", i32 1}
 !6 = !{void (i32*)* @_Z28barrier_NotDivergent_allThdsPi, !"kernel", i32 1}
-!7 = !{!"Ubuntu clang version 14.0.0-1ubuntu1.1"}
-!8 = !{!"clang version 3.8.0 (tags/RELEASE_380/final)"}
-!9 = !{i32 2, i32 0}
+!7 = !{void (i32*)* @_Z25barrier_Divergent_ComplexPi, !"kernel", i32 1}
+!8 = !{!"Ubuntu clang version 14.0.0-1ubuntu1.1"}
+!9 = !{!"clang version 3.8.0 (tags/RELEASE_380/final)"}
+!10 = !{i32 2, i32 0}

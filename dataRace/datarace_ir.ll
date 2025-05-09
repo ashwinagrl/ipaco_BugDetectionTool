@@ -60,6 +60,26 @@ define dso_local void @_Z11test_case_3Pi(i32* noundef %0) #0 {
   ret void
 }
 
+; Function Attrs: convergent mustprogress noinline norecurse nounwind optnone
+define dso_local void @_Z11test_case_4Pi(i32* noundef %0) #0 {
+  %2 = alloca i32*, align 8
+  store i32* %0, i32** %2, align 8
+  %3 = call i32 @llvm.nvvm.read.ptx.sreg.tid.x() #3
+  %4 = load i32*, i32** %2, align 8
+  %5 = call i32 @llvm.nvvm.read.ptx.sreg.tid.x() #3
+  %6 = zext i32 %5 to i64
+  %7 = getelementptr inbounds i32, i32* %4, i64 %6
+  store i32 %3, i32* %7, align 4
+  %8 = call i32 @llvm.nvvm.read.ptx.sreg.tid.x() #3
+  %9 = load i32*, i32** %2, align 8
+  %10 = call i32 @llvm.nvvm.read.ptx.sreg.tid.x() #3
+  %11 = add i32 %10, 1
+  %12 = zext i32 %11 to i64
+  %13 = getelementptr inbounds i32, i32* %9, i64 %12
+  store i32 %8, i32* %13, align 4
+  ret void
+}
+
 ; Function Attrs: nounwind readnone speculatable
 declare i32 @llvm.nvvm.read.ptx.sreg.tid.x() #2
 
@@ -69,9 +89,9 @@ attributes #2 = { nounwind readnone speculatable }
 attributes #3 = { nounwind }
 
 !llvm.module.flags = !{!0, !1, !2, !3}
-!nvvm.annotations = !{!4, !5, !6}
-!llvm.ident = !{!7, !8}
-!nvvmir.version = !{!9}
+!nvvm.annotations = !{!4, !5, !6, !7}
+!llvm.ident = !{!8, !9}
+!nvvmir.version = !{!10}
 
 !0 = !{i32 2, !"SDK Version", [2 x i32] [i32 11, i32 5]}
 !1 = !{i32 1, !"wchar_size", i32 4}
@@ -80,6 +100,7 @@ attributes #3 = { nounwind }
 !4 = !{void (i32*)* @_Z11test_case_1Pi, !"kernel", i32 1}
 !5 = !{void (i32*)* @_Z11test_case_2Pi, !"kernel", i32 1}
 !6 = !{void (i32*)* @_Z11test_case_3Pi, !"kernel", i32 1}
-!7 = !{!"Ubuntu clang version 14.0.0-1ubuntu1.1"}
-!8 = !{!"clang version 3.8.0 (tags/RELEASE_380/final)"}
-!9 = !{i32 2, i32 0}
+!7 = !{void (i32*)* @_Z11test_case_4Pi, !"kernel", i32 1}
+!8 = !{!"Ubuntu clang version 14.0.0-1ubuntu1.1"}
+!9 = !{!"clang version 3.8.0 (tags/RELEASE_380/final)"}
+!10 = !{i32 2, i32 0}

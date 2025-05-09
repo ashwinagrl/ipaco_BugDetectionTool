@@ -1,3 +1,4 @@
+%%writefile divergence_test_cases.cu
 #include <stdio.h>
 
 #define N 4 // Assume block size for tid range
@@ -35,6 +36,18 @@ __global__ void barrier_NotDivergent_allThds(int* A) {
     if (1) { //
       A[tid] = tid;
       __syncthreads(); // Not DIVERGENT
+      A[tid] = tid * 10;
+    } else {
+      A[tid] = tid * -1;
+    }
+  }
+
+// Case: Divergent
+__global__ void barrier_Divergent_Complex(int* A) {
+    int tid = threadIdx.x;
+    if (tid<16) { //
+      A[tid] = tid;
+      __syncthreads(); // DIVERGENT
       A[tid] = tid * 10;
     } else {
       A[tid] = tid * -1;

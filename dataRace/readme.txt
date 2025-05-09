@@ -1,7 +1,7 @@
 To Run the dataRace pass, use the following command:
 - From bin folder run:
     sudo ./opt -load /home/ashwin/Desktop/ipaco/llvm-project/build/lib/LLVMCuBug.so -enable-new-pm=0 -datarace datarace_ir.ll -o output1.ll
-    
+
 - Output for it:
 [ Algorithm ] Processing Function: _Z11test_case_1Pi
 [ Algorithm ]   Memory model size: 5
@@ -29,3 +29,11 @@ _Z11test_case_2Pi:0&0: Potential Inter-Event Data Race Detected between instruct
 [ Algorithm ]   Starting Intra-Event Race Checks (Refined)...
 [ Algorithm ]   Starting Inter-Event Race Checks...
 [ Algorithm ] Finished analysis for: _Z11test_case_3Pi
+[ Algorithm ] Processing Function: _Z11test_case_4Pi
+[ Algorithm ]   Memory model size: 5
+[ Algorithm ]   Starting Intra-Event Race Checks (Refined)...
+[ Algorithm ]   Starting Inter-Event Race Checks...
+_Z11test_case_4Pi:0&0: Potential Inter-Event Data Race Detected between instructions:
+  store i32 %3, i32* %7, align 4
+  store i32 %8, i32* %13, align 4
+[ Algorithm ] Finished analysis for: _Z11test_case_4Pi

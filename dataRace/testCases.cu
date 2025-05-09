@@ -23,6 +23,12 @@ __global__ void test_case_3(int* Array) {
     Array[threadIdx.x] = threadIdx.x;  // Thread 0 writes 0 to Array[0] again
 }
 
+// Test Case 4: Inter Data Race
+__global__ void test_case_4(int* Array) {
+    Array[threadIdx.x] = threadIdx.x;  
+    Array[threadIdx.x+1] = threadIdx.x; 
+}
+
 int main() {
   // Dummy main function
     return 0;

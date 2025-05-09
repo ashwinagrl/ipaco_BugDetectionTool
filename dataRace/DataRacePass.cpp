@@ -20,6 +20,7 @@ using namespace llvm;
 enum class SymbolicLocationType {
     CONSTANT_INDEXED_ARRAY0, // 0
     TID_X_INDEXED_ARRAY,     // 1
+    TID_PLUS_CONSTANT_INDEXED_ARRAY,   // index == tid.x + C
     OTHER_COMPLEX,           // 2
     UNINITIALIZED            // 3
 };
@@ -28,6 +29,7 @@ enum class SymbolicLocationType {
 struct SymbolicLocation {
     const Argument* baseKernelArg = nullptr;
     SymbolicLocationType type = SymbolicLocationType::UNINITIALIZED;
+    int64_t constantOffset = 0; 
 
     std::pair<const Argument*, int64_t> getConcreteLocation(int symbolic_tid_x_val) const {
         if (!baseKernelArg) return {nullptr, -1};
@@ -35,6 +37,9 @@ struct SymbolicLocation {
             return {baseKernelArg, 0};
         } else if (type == SymbolicLocationType::TID_X_INDEXED_ARRAY) {
             return {baseKernelArg, static_cast<int64_t>(symbolic_tid_x_val)};
+        }
+        else if (type == SymbolicLocationType::TID_PLUS_CONSTANT_INDEXED_ARRAY) {
+            return {baseKernelArg, static_cast<int64_t>(symbolic_tid_x_val) + constantOffset};
         }
         return {baseKernelArg, -2}; // OTHER_COMPLEX or UNINITIALIZED
     }
@@ -48,6 +53,7 @@ struct SymbolicLocation {
          switch(type) {
             case SymbolicLocationType::CONSTANT_INDEXED_ARRAY0: return "CONSTANT_INDEXED_ARRAY0";
             case SymbolicLocationType::TID_X_INDEXED_ARRAY:     return "TID_X_INDEXED_ARRAY";
+            case SymbolicLocationType::TID_PLUS_CONSTANT_INDEXED_ARRAY: return "TID_PLUS_CONSTANT_INDEXED_ARRAY";
             case SymbolicLocationType::OTHER_COMPLEX:           return "OTHER_COMPLEX";
             case SymbolicLocationType::UNINITIALIZED:           return "UNINITIALIZED";
             default: return "UNKNOWN_TYPE";
@@ -141,7 +147,29 @@ struct AbstractAddressFunc {
                     }
                 } else if (ZExtInst* ZI = dyn_cast<ZExtInst>(indexOperand)) {
                     // outs() << "[DEBUG][characterize]        Index is ZExt: "; ZI->print(outs()); outs() << "\n";
-                     if (CallInst* PossibleTidCall = dyn_cast<CallInst>(ZI->getOperand(0))) {
+                    Value *inner = ZI->getOperand(0);
+                    if (auto *BO = dyn_cast<BinaryOperator>(inner)) {
+                        if (BO->getOpcode() == Instruction::Add) {
+                            // Try to split into (tid.x, C) or (C, tid.x)
+                            Value *L = BO->getOperand(0), *R = BO->getOperand(1);
+                            ConstantInt *CI = dyn_cast<ConstantInt>(L);
+                            CallInst    *Call = dyn_cast<CallInst>(R);
+                            if (!CI || !Call) {
+                                CI   = dyn_cast<ConstantInt>(R);
+                                Call = dyn_cast<CallInst>(L);
+                            }
+                            if (CI && Call) {
+                                if (Function *Callee = Call->getCalledFunction();
+                                    Callee && Callee->isIntrinsic() &&
+                                    Callee->getName() == "llvm.nvvm.read.ptx.sreg.tid.x") {
+                                    symLoc.type           = SymbolicLocationType::TID_PLUS_CONSTANT_INDEXED_ARRAY;
+                                    symLoc.constantOffset = CI->getSExtValue();
+                                    return symLoc;
+                                }
+                            }
+                        }
+                    }
+                     else if (CallInst* PossibleTidCall = dyn_cast<CallInst>(ZI->getOperand(0))) {
                         // outs() << "[DEBUG][characterize]          ZExt is from Call: "; PossibleTidCall->print(outs()); outs() << "\n";
                          if (Function* Callee = PossibleTidCall->getCalledFunction()) {
                             // outs() << "[DEBUG][characterize]            Callee Name: " << Callee->getName() << "\n";
@@ -154,7 +182,27 @@ struct AbstractAddressFunc {
                         }
                      } else { //outs() << "[DEBUG][characterize]        ZExt is not from CallInst. Type=OTHER_COMPLEX\n"; 
                     }
-                } else {
+                } else if(auto *BO = dyn_cast<BinaryOperator>(indexOperand)){
+                    if (BO->getOpcode() == Instruction::Add) {
+                        Value *L = BO->getOperand(0), *R = BO->getOperand(1);
+                        ConstantInt *CI = nullptr;
+                        ZExtInst    *ZI = nullptr;
+                  
+                        // match (zext(tid.x), C) or (C, zext(tid.x))
+                        if ((ZI = dyn_cast<ZExtInst>(L)) && (CI = dyn_cast<ConstantInt>(R))
+                            || (ZI = dyn_cast<ZExtInst>(R)) && (CI = dyn_cast<ConstantInt>(L))) {
+                          if (auto *Call = dyn_cast<CallInst>(ZI->getOperand(0))) {
+                            if (Function *Callee = Call->getCalledFunction();
+                                Callee && Callee->isIntrinsic() &&
+                                Callee->getName() == "llvm.nvvm.read.ptx.sreg.tid.x") {
+                              symLoc.type          = SymbolicLocationType::TID_PLUS_CONSTANT_INDEXED_ARRAY;
+                              symLoc.constantOffset = CI->getSExtValue();
+                            }
+                          }
+                        }
+                      }
+                } 
+                else {
                     // outs() << "[DEBUG][characterize]      Index is not ConstantInt or ZExt. Type=OTHER_COMPLEX\n";
                  }
             } else {
@@ -322,9 +370,13 @@ struct CUDARaceDetectorPass : public FunctionPass {
         // ---- Apply Inter-Event Race Rule ----
         outs() << "[ Algorithm ]   Starting Inter-Event Race Checks...\n";
         for (size_t i = 0; i < memoryModel.size(); ++i) {
+            const auto& e_i1 = memoryModel[i];
+            //Prin the barrier order
+            // outs() << "[DEBUG][Inter] Checking event #" << i << " (v=" << e_i1.barrierOrder << ")\n";
             for (size_t j = i + 1; j < memoryModel.size(); ++j) {
                 const auto& e_i = memoryModel[i];
                 const auto& e_j = memoryModel[j];
+            
 
                 // outs() << "[DEBUG][Inter] Comparing event #" << i << " (v=" << e_i.barrierOrder << ") with event #" << j << " (v=" << e_j.barrierOrder << ")\n"; // Verbose
 
