@@ -29,6 +29,18 @@ __global__ void barrier_outside_divergence(int* A) {
   A[tid] = A[tid] + 1;
 }
 
+// Case: Not Divergent (Because all threads executing)
+__global__ void barrier_NotDivergent_allThds(int* A) {
+    int tid = threadIdx.x;
+    if (1) { //
+      A[tid] = tid;
+      __syncthreads(); // Not DIVERGENT
+      A[tid] = tid * 10;
+    } else {
+      A[tid] = tid * -1;
+    }
+  }
+
 // Dummy main
 
 int main() { return 0; }
