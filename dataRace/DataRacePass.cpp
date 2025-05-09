@@ -170,7 +170,7 @@ struct AbstractAddressFunc {
 
     bool isSingleConstantLocationOverTau(const SmallSet<int, 2>& tau) const {
         SymbolicLocation symLoc = characterize();
-        if (symLoc.type == SymbolicLocationType::CONSTANT_INDEXED_ARRAY0) return true;
+        if (symLoc.type == SymbolicLocationType::CONSTANT_INDEXED_ARRAY0) return false;
         if (symLoc.type == SymbolicLocationType::TID_X_INDEXED_ARRAY) return tau.size() <= 1;
         return false;
     }
@@ -392,7 +392,7 @@ struct CUDARaceDetectorPass : public FunctionPass {
 
 char CUDARaceDetectorPass::ID = 0;
 static RegisterPass<CUDARaceDetectorPass> X(
-    "redu_barr", // Your chosen name
+    "datarace", // Your chosen name
     "CUDA Data Race Detector Pass (Tailored with Full Debugging)",
     false,
     false);
