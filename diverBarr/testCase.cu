@@ -1,34 +1,29 @@
 #include <stdio.h>
 
-#define N 4 // Assume block size for tid range
+#define N 2 // For simplicity, just two threads in the block
 
-// Case: Divergent (Thread-Dependent Condition)
-__global__ void barrier_divergent_tid(int* A) {
-  int tid = threadIdx.x;
-  if (tid < (N / 2)) { // Condition depends on tid (True for 0, 1; False for 2, 3 if N=4)
-    A[tid] = tid;
-    __syncthreads(); // DIVERGENT
-    A[tid] = tid * 10;
-  } else {
-    A[tid] = tid * -1;
-  }
+// Test Case 1: Intra Data Race
+__global__ void test_case_1(int* Array) {
+    Array[0] = threadIdx.x;  // Thread 0 writes 0, Thread 1 writes 1
+    __syncthreads();         // Synchronization
+    Array[0] = threadIdx.x;  // Thread 0 writes 0, Thread 1 writes 1
 }
 
-// Case : Not Divergent (Barrier Outside Condition)
-__global__ void barrier_outside_divergence(int* A) {
-
-  int tid = threadIdx.x;
-
-  if (tid < (N / 2)) { // Divergent execution path
-    A[tid] = tid;
-  } else {
-    A[tid] = tid * 100;
-  }
-  // Barrier is outside the conditional block. All threads reach here.
-  __syncthreads(); // NOT DIVERGENT
-  A[tid] = A[tid] + 1;
+// Test Case 2: Both Inter and Intra Data Race (No Synchronization Between Threads)
+__global__ void test_case_2(int* Array) {
+    // Thread 0 and thread 1 both write to Array[0], no synchronization
+    Array[0] = threadIdx.x;  // Thread 0 writes 0, Thread 1 writes 1
+    Array[0] = threadIdx.x;  // Thread 0 writes 0, Thread 1 writes 1
 }
 
-// Dummy main
+// Test Case 3: No Data Race (Same Thread Writing to Array[tid] Twice, No Synchronization)
+__global__ void test_case_3(int* Array) {
+    // Thread 0 writes to Array[tid] twice
+    Array[threadIdx.x] = threadIdx.x;  // Thread 0 writes 0 to Array[0], Thread 1 writes 1 to Array[1]
+    Array[threadIdx.x] = threadIdx.x;  // Thread 0 writes 0 to Array[0] again
+}
 
-int main() { return 0; }
+int main() {
+  // Dummy main function
+    return 0;
+}
